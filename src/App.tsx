@@ -11,7 +11,7 @@ interface AppProps {
 
 export default function App({ service: injected }: AppProps) {
   const service = useMemo(() => injected ?? createPaymentLinkService(), [injected]);
-  const [links, setLinks] = useState<PaymentLink[]>([]);
+  const [links, setLinks] = useState<PaymentLink[]>(() => service.list());
   const [filter, setFilter] = useState<StatusFilter>('All');
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -33,6 +33,18 @@ export default function App({ service: injected }: AppProps) {
     }
   };
 
+  const recordPayment = (id: string, amount: string) => {
+    try {
+      service.recordPayment(id, amount);
+      setLinks(service.list());
+      setNow(Date.now());
+      setError(null);
+      return undefined;
+    } catch (e) {
+      return e instanceof Error ? e.message : 'Something went wrong. Please try again.';
+    }
+  };
+
   const visible = filterLinks(links, filter, now);
 
   return (
@@ -45,7 +57,7 @@ export default function App({ service: injected }: AppProps) {
         filter={filter}
         now={now}
         onFilterChange={setFilter}
-        onMarkPaid={(id) => run(() => service.markPaid(id))}
+        onRecordPayment={recordPayment}
       />
     </main>
   );

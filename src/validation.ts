@@ -20,13 +20,13 @@ export function validateForm(input: FormInput, now: number = Date.now()): FormEr
   const errors: FormErrors = {};
 
   const amount = input.amount.trim();
+  const amountPaise = parseAmountToPaise(amount);
   if (!amount) {
     errors.amount = 'Amount is required.';
   } else {
-    const paise = parseAmountToPaise(amount);
-    if (paise === null) errors.amount = 'Enter a valid amount with at most 2 decimals.';
-    else if (paise <= 0) errors.amount = 'Amount must be greater than 0.';
-    else if (paise > MAX_AMOUNT * 100) errors.amount = 'Amount cannot exceed ₹5,00,000.';
+    if (amountPaise === null) errors.amount = 'Enter a valid amount with at most 2 decimals.';
+    else if (amountPaise <= 0) errors.amount = 'Amount must be greater than 0.';
+    else if (amountPaise > MAX_AMOUNT * 100) errors.amount = 'Amount cannot exceed ₹5,00,000.';
   }
 
   const description = input.description.trim();
@@ -48,6 +48,19 @@ export function validateForm(input: FormInput, now: number = Date.now()): FormEr
     const t = new Date(input.expiry).getTime();
     if (Number.isNaN(t)) errors.expiry = 'Enter a valid expiry date.';
     else if (t <= now) errors.expiry = 'Expiry must be in the future.';
+  }
+
+  if (input.allowPartialPayments) {
+    const minimum = parseAmountToPaise(input.minimumFirstPayment);
+    if (!input.minimumFirstPayment.trim()) {
+      errors.minimumFirstPayment = 'Minimum first payment is required.';
+    } else if (minimum === null) {
+      errors.minimumFirstPayment = 'Enter a valid amount with at most 2 decimals.';
+    } else if (minimum <= 0) {
+      errors.minimumFirstPayment = 'Minimum first payment must be greater than 0.';
+    } else if (amountPaise !== null && minimum > amountPaise) {
+      errors.minimumFirstPayment = 'Minimum first payment cannot exceed the link amount.';
+    }
   }
 
   return errors;

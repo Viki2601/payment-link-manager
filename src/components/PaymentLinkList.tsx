@@ -1,8 +1,9 @@
+import { useState, type FormEvent } from 'react';
 import type { PaymentLink, StatusFilter } from '../types';
 import { getStatus } from '../status';
 import { formatDateTime, formatINR } from '../format';
 
-export const FILTERS: StatusFilter[] = ['All', 'Active', 'Paid', 'Expired'];
+export const FILTERS: StatusFilter[] = ['All', 'Active', 'Partially paid', 'Paid', 'Expired'];
 
 interface Props {
   links: PaymentLink[]; // already filtered
@@ -10,10 +11,27 @@ interface Props {
   filter: StatusFilter;
   now: number;
   onFilterChange: (f: StatusFilter) => void;
-  onMarkPaid: (id: string) => void;
+  onRecordPayment: (id: string, amount: string) => string | undefined;
 }
 
-export function PaymentLinkList({ links, totalCount, filter, now, onFilterChange, onMarkPaid }: Props) {
+export function PaymentLinkList({
+  links,
+  totalCount,
+  filter,
+  now,
+  onFilterChange,
+  onRecordPayment,
+}: Props) {
+  const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
+  const [paymentErrors, setPaymentErrors] = useState<Record<string, string>>({});
+
+  const submitPayment = (event: FormEvent<HTMLFormElement>, id: string) => {
+    event.preventDefault();
+    const error = onRecordPayment(id, paymentAmounts[id] ?? '');
+    setPaymentErrors((previous) => ({ ...previous, [id]: error ?? '' }));
+    if (!error) setPaymentAmounts((previous) => ({ ...previous, [id]: '' }));
+  };
+
   return (
     <section aria-labelledby="list-title" className="card">
       <h2 id="list-title">Payment links</h2>
@@ -40,25 +58,56 @@ export function PaymentLinkList({ links, totalCount, filter, now, onFilterChange
         </p>
       ) : (
         <ul className="links" aria-label="Payment links">
-          {links.map((l) => {
-            const status = getStatus(l, now);
+          {links.map((link) => {
+            const status = getStatus(link, now);
+            const due = link.amountPaise - link.amountPaidPaise;
+            const errorId = `payment-error-${link.id}`;
+            const error = paymentErrors[link.id];
             return (
-              <li key={l.id} className="link-row" data-testid="link-row">
+              <li key={link.id} className="link-row" data-testid="link-row">
                 <div className="link-main">
-                  <strong className="amount">{formatINR(l.amountPaise)}</strong>
-                  <span className={`badge ${status.toLowerCase()}`}>{status}</span>
+                  <strong className="amount">{formatINR(link.amountPaise)}</strong>
+                  <span className={`badge ${status.toLowerCase().replace(' ', '-')}`}>{status}</span>
                 </div>
-                <p className="desc">{l.description}</p>
+                <p className="desc">{link.description}</p>
                 <p className="meta">
-                  {l.email ?? l.phone}
+                  {link.email ?? link.phone}
                   {' · Created '}
-                  {formatDateTime(l.createdAt)}
-                  {l.expiresAt !== undefined && <> · Expires {formatDateTime(l.expiresAt)}</>}
+                  {formatDateTime(link.createdAt)}
+                  {link.expiresAt !== undefined && <> · Expires {formatDateTime(link.expiresAt)}</>}
                 </p>
-                {status !== 'Paid' && (
-                  <button type="button" className="secondary" onClick={() => onMarkPaid(l.id)}>
-                    Mark as paid<span className="sr-only">: {l.description}</span>
-                  </button>
+                <p className="payment-summary">
+                  Paid {formatINR(link.amountPaidPaise)} · Due {formatINR(due)}
+                </p>
+                {(status === 'Active' || status === 'Partially paid') && (
+                  <form className="payment-form" noValidate onSubmit={(event) => submitPayment(event, link.id)}>
+                    <label htmlFor={`payment-amount-${link.id}`}>Payment amount (₹)</label>
+                    <input
+                      id={`payment-amount-${link.id}`}
+                      inputMode="decimal"
+                      autoComplete="off"
+                      required
+                      value={paymentAmounts[link.id] ?? ''}
+                      onChange={(event) =>
+                        setPaymentAmounts((previous) => ({ ...previous, [link.id]: event.target.value }))
+                      }
+                      aria-required="true"
+                      aria-invalid={!!error}
+                      aria-describedby={error ? errorId : undefined}
+                    />
+                    {error && (
+                      <p id={errorId} className="field-error" role="alert">
+                        {error}
+                      </p>
+                    )}
+                    <button
+                      type="submit"
+                      className="secondary"
+                      aria-label={`Record payment: ${link.description}`}
+                    >
+                      Record payment
+                    </button>
+                  </form>
                 )}
               </li>
             );

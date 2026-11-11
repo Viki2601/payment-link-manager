@@ -3,7 +3,15 @@ import { parseAmountToPaise, validateForm } from './validation';
 import type { FormInput } from './types';
 
 const NOW = new Date('2026-11-11T10:00:00').getTime();
-const valid: FormInput = { amount: '1500.50', description: 'Invoice 42', email: 'a@b.co', phone: '', expiry: '' };
+const valid: FormInput = {
+  amount: '1500.50',
+  description: 'Invoice 42',
+  email: 'a@b.co',
+  phone: '',
+  expiry: '',
+  allowPartialPayments: false,
+  minimumFirstPayment: '',
+};
 
 describe('validateForm', () => {
   it('accepts a valid input with email only', () => {
@@ -41,6 +49,16 @@ describe('validateForm', () => {
   it('requires expiry, when provided, to be in the future', () => {
     expect(validateForm({ ...valid, expiry: '2026-11-11T09:00' }, NOW).expiry).toMatch(/future/);
     expect(validateForm({ ...valid, expiry: '2026-11-12T09:00' }, NOW).expiry).toBeUndefined();
+  });
+
+  it('requires a valid minimum first payment when partial payments are enabled', () => {
+    const partial = { ...valid, allowPartialPayments: true };
+    expect(validateForm(partial, NOW).minimumFirstPayment).toMatch(/required/);
+    expect(validateForm({ ...partial, minimumFirstPayment: '0' }, NOW).minimumFirstPayment).toMatch(/greater than 0/);
+    expect(validateForm({ ...partial, minimumFirstPayment: '1.999' }, NOW).minimumFirstPayment).toMatch(/2 decimals/);
+    expect(validateForm({ ...partial, minimumFirstPayment: '1500.51' }, NOW).minimumFirstPayment).toMatch(/exceed/);
+    expect(validateForm({ ...partial, minimumFirstPayment: '0.01' }, NOW).minimumFirstPayment).toBeUndefined();
+    expect(validateForm({ ...valid, minimumFirstPayment: 'invalid' }, NOW).minimumFirstPayment).toBeUndefined();
   });
 });
 

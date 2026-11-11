@@ -2,7 +2,15 @@ import { useState, type FormEvent } from 'react';
 import type { FormErrors, FormInput } from '../types';
 import { validateForm, MAX_DESCRIPTION } from '../validation';
 
-const EMPTY: FormInput = { amount: '', description: '', email: '', phone: '', expiry: '' };
+const EMPTY: FormInput = {
+  amount: '',
+  description: '',
+  email: '',
+  phone: '',
+  expiry: '',
+  allowPartialPayments: false,
+  minimumFirstPayment: '',
+};
 
 interface Props {
   onCreate: (input: FormInput) => void;
@@ -15,7 +23,10 @@ export function PaymentLinkForm({ onCreate, submitError }: Props) {
   const [touched, setTouched] = useState<Set<string>>(new Set());
 
   const set = (field: keyof FormInput) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const next = { ...values, [field]: e.target.value };
+    const next: FormInput =
+      field === 'allowPartialPayments'
+        ? { ...values, allowPartialPayments: e.target.checked }
+        : { ...values, [field]: e.target.value };
     setValues(next);
     if (touched.size > 0) setErrors(validateForm(next)); // live re-validate once the user has interacted
   };
@@ -123,6 +134,39 @@ export function PaymentLinkForm({ onCreate, submitError }: Props) {
         />
         {err('expiry-error', show('expiry'))}
       </div>
+
+      <div className="field">
+        <label className="checkbox-label" htmlFor="allow-partial-payments">
+          <input
+            id="allow-partial-payments"
+            type="checkbox"
+            checked={values.allowPartialPayments}
+            onChange={set('allowPartialPayments')}
+          />
+          Allow partial payments
+        </label>
+      </div>
+
+      {values.allowPartialPayments && (
+        <div className="field">
+          <label htmlFor="minimum-first-payment">Minimum first payment (₹)</label>
+          <input
+            id="minimum-first-payment"
+            inputMode="decimal"
+            autoComplete="off"
+            value={values.minimumFirstPayment}
+            onChange={set('minimumFirstPayment')}
+            onBlur={blur('minimumFirstPayment')}
+            aria-required="true"
+            aria-invalid={!!show('minimumFirstPayment')}
+            aria-describedby={show('minimumFirstPayment') ? 'minimum-first-payment-error' : 'minimum-first-payment-hint'}
+          />
+          <p id="minimum-first-payment-hint" className="hint">
+            Must be greater than 0 and no more than the link amount.
+          </p>
+          {err('minimum-first-payment-error', show('minimumFirstPayment'))}
+        </div>
+      )}
 
       {submitError && (
         <p className="banner-error" role="alert">

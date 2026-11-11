@@ -4,6 +4,23 @@ import { describe, expect, it } from 'vitest';
 import App from './App';
 
 describe('App', () => {
+  it('associates inline minimum-payment validation with its input', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.type(screen.getByLabelText('Amount (₹)'), '50');
+    await user.type(screen.getByLabelText('Description'), 'Partial invoice');
+    await user.type(screen.getByLabelText('Email'), 'c@x.com');
+    await user.click(screen.getByLabelText('Allow partial payments'));
+    await user.click(screen.getByRole('button', { name: 'Create link' }));
+
+    expect(screen.getByText('Minimum first payment is required.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Minimum first payment (₹)')).toHaveAttribute(
+      'aria-describedby',
+      'minimum-first-payment-error',
+    );
+  });
+
   it('shows validation errors and the empty state, then creates and filters links', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -23,7 +40,8 @@ describe('App', () => {
     expect(rows).toHaveLength(1);
     expect(within(rows[0]).getByText('₹2,500.00')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /mark as paid/i }));
+    await user.type(screen.getByLabelText('Payment amount (₹)'), '2500');
+    await user.click(screen.getByRole('button', { name: 'Record payment: Order 1' }));
     await user.click(screen.getByRole('button', { name: 'Active' }));
     expect(screen.getByText(/no active links match/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Paid' }));
